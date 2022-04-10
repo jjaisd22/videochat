@@ -41,4 +41,3 @@ function SendAnswer(data) {
 
 http.listen(port, () => console.log(`Active on ${port} port`))
 
-
