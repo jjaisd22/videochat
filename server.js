@@ -1,38 +1,44 @@
-const express = require("express");
-const http = require("http");
-const app = express();
-const server = http.createServer(app);
-const socket = require("socket.io");
-const io = socket(server);
+const express = require('express')
+const app = express()
+const http = require('http').Server(app)
+const io = require('socket.io')(http)
+const port = process.env.PORT || 3000
 
-const rooms = {};
+app.use(express.static(__dirname + "/public"))
+let clients = 0
 
-io.on("connection", socket => {
-    socket.on("join room", roomID => {
-        if (rooms[roomID]) {
-            rooms[roomID].push(socket.id);
-        } else {
-            rooms[roomID] = [socket.id];
+io.on('connection', function (socket) {
+    socket.on("NewClient", function () {
+        if (clients < 2) {
+            if (clients == 1) {
+                this.emit('CreatePeer')
+            }
         }
-        const otherUser = rooms[roomID].find(id => id !== socket.id);
-        if (otherUser) {
-            socket.emit("other user", otherUser);
-            socket.to(otherUser).emit("user joined", socket.id);
-        }
-    });
+        else
+            this.emit('SessionActive')
+        clients++;
+    })
+    socket.on('Offer', SendOffer)
+    socket.on('Answer', SendAnswer)
+    socket.on('disconnect', Disconnect)
+})
 
-    socket.on("offer", payload => {
-        io.to(payload.target).emit("offer", payload);
-    });
+function Disconnect() {
+    if (clients > 0) {
+        if (clients <= 2)
+            this.broadcast.emit("Disconnect")
+        clients--
+    }
+}
 
-    socket.on("answer", payload => {
-        io.to(payload.target).emit("answer", payload);
-    });
+function SendOffer(offer) {
+    this.broadcast.emit("BackOffer", offer)
+}
 
-    socket.on("ice-candidate", incoming => {
-        io.to(incoming.target).emit("ice-candidate", incoming.candidate);
-    });
-});
+function SendAnswer(data) {
+    this.broadcast.emit("BackAnswer", data)
+}
+
+http.listen(port, () => console.log(`Active on ${port} port`))
 
 
-server.listen(8000, () => console.log('server is running on port 8000'));
